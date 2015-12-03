@@ -12,8 +12,8 @@ DevFlags		=
 	$(CXX) -std=c++11  $(DevFlags) $(CCFlags) $(UserCCFlags) $(CCDefines) -c -o $@ $<
 
 all: $(Objs)
-	$(CC) -std=c++11 -shared -L/usr/lib64/ -lusb -o $(Objs) -pthread
-	mv libPh2_Antenna.so ../lib
+	$(CC) -std=c++11 -shared -L/usr/lib64/ -lusb -o libPh2_Antenna.so $(Objs) -pthread
+	mv libPh2_Antenna.so lib
 
 clean:
 	rm -f *.o
