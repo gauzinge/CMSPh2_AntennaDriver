@@ -9,6 +9,14 @@ int Antenna::initializeAntenna()
 	}
 	usb_claim_interface( fUsbHandle, 0 ); // claim the interface for antenna connection, so kernel cannot do it when we need to use the device
 	usb_reset( fUsbHandle ); // chip needs to wake up from whatever state it was in before its interface was reclaimed
+	//here: change mode of every pin!
+	
+	//set GPIO pins to push-pull mode, with idle value (high)
+	char buf_out[3]={0, 2, 1};
+	for(int cs_line = 0; cs_line < 10; cs_line++){
+		buf_out[0] = cs_line;
+		int result = usb_control_msg( fUsbHandle, 0x40, 0x23, 0, 0, ( char* ) buf_out, sizeof( buf_out ), fUsbTimeout );
+	}	
 	return 0;
 }
 
@@ -77,6 +85,7 @@ usb_dev_handle* Antenna::setup_libusb_access()
 	return antenna_usb_handle;
 }
 
+
 void Antenna::ConfigureSpiSlave( uint8_t pSlaveChipSelectId )
 {
 	int result; // variable for gathering results from USB related transfers, useful only for debugging
@@ -87,20 +96,20 @@ void Antenna::ConfigureSpiSlave( uint8_t pSlaveChipSelectId )
 	buf_out[0] = pSlaveChipSelectId;
 	control_msg_set_spi_word[0] = pSlaveChipSelectId;
 
-	/*First activate chip select line of corresponding analog switch for SPI communication.*/
-	result = usb_control_msg( fUsbHandle, 0x40, 0x25, 0, 0, ( char* ) buf_out, sizeof( buf_out ), fUsbTimeout );
+	/*Set SPI transfer parameters.*/
+	result = usb_control_msg( fUsbHandle, 0x40, 0x31, 0, 0, ( char* ) control_msg_set_spi_word, sizeof( control_msg_set_spi_word ), fUsbTimeout );
 
+	/*Activate chip select line of corresponding analog switch for SPI communication.*/
+	result = usb_control_msg( fUsbHandle, 0x40, 0x25, 0, 0, ( char* ) buf_out, sizeof( buf_out ), fUsbTimeout );
+	
 	/*Check 'buf_in' if correct number of chip select channel was stored in the cp2130 chip.*/
 	result = usb_control_msg( fUsbHandle, 0xC0, 0x24, 0, 0, ( char* ) buf_in, sizeof( buf_in ), fUsbTimeout );
 
-	/*Set SPI transfer parameters.*/
-	result = usb_control_msg( fUsbHandle, 0x40, 0x31, 0, 0, ( char* ) control_msg_set_spi_word, sizeof( control_msg_set_spi_word ), fUsbTimeout );
+	
 
 	/*Finally we can write through cp2130 to analog switch. We are writing an array of chars where the last byte is giving the position of channels to be turned on.
 	They are identified by '1' position in binary representation of that byte value.*/
 	result = usb_bulk_write( fUsbHandle, fUsbEndpointBulkOut, ( char* ) bulk_buffer_out, sizeof( bulk_buffer_out ), fUsbTimeout ); // turning off all channels of analog switch
-	sleep( 0.1 );
-
 }
 
 void Antenna::TurnOnAnalogSwitchChannel( uint8_t pSwichChannelId )
@@ -112,10 +121,16 @@ void Antenna::TurnOnAnalogSwitchChannel( uint8_t pSwichChannelId )
 		bulk_buffer_out[8] = 0; // this is just to turn off all the channels of analog switch (if powered it holds last written configuration) at the end of the loop
 	}
 	else
+	{
 		bulk_buffer_out[8] = ( char )( ( 1 << ( pSwichChannelId - 1 ) ) & 0xFF );
-
+	}
+		
+//#ifdef SLC5_
 	result = usb_bulk_write( fUsbHandle, fUsbEndpointBulkOut, ( char* ) bulk_buffer_out, sizeof( bulk_buffer_out ), fUsbTimeout );
-	sleep( 0.1 );
+//#elif
+//	result = whatever u have to use in SLC6	
+//#endif
+	sleep( 0.01 );
 
 }
 
